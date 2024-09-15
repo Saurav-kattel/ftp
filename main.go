@@ -13,57 +13,77 @@ var isConnectionEstablished bool
 var mu sync.Mutex
 
 func main() {
+	// Define flags
+	stateFlag := flag.String("h", "HOST", "-h [CLIENT | HOST] \n CLIENT to connect to the host server \n HOST to init a server\n")
+	serverIp := flag.String("ip", "", "-ip [Server's IP] (for CLIENT mode only)")
 
-	stateFlag := flag.String("h", "HOST", "-h [ CLIENT | HOST ] \n CLINET to connect to the host server \n HOST to init a server\n")
-	serverIp := flag.String("ip", "null", "-ip [Server's Ip] (for CLIENT mode only)")
-	port := flag.String("p", "null", "-p [PORT]  (for CLIENT mode only)")
+	port := flag.String("p", "", "-p [PORT] (for CLIENT mode only)")
 
+	// Parse the command-line flags
 	flag.Parse()
 
-	if *stateFlag == "HOST" {
+	switch *stateFlag {
+	case "HOST":
+		// Get the IP address for the HOST mode
 		ip, err := server.GetIp()
+		if err != nil {
+			log.Fatalf("Error getting IP: %v", err)
+		}
+		fmt.Println("ip is ", ip)
+		listener, err := server.InitServer(ip, "4000")
+		if err != nil {
+			log.Fatalf("Error initializing server: %v", err)
+		}
+		defer listener.Close()
 
-		if err != nil {
-			fmt.Printf("error: ", err.Error())
-		}
-		conn, err := server.InitServer(ip, "4000")
-		if err != nil {
-			log.Panic("Error initalizing connection", err.Error())
-		}
-		defer conn.Close()
 		isConnectionEstablished = false
 		for {
-
-			if isConnectionEstablished {
-				break
-			}
-
-			con, err := conn.Accept()
-
+			conn, err := listener.Accept()
 			if err != nil {
-				fmt.Println("Fuck")
+				log.Printf("Error accepting connection: %v", err)
+				continue
 			}
-
-			isConnectionEstablished = true
-			go server.HandleConn(con)
+			go server.HandleConn(conn)
 		}
 
-	} else if *stateFlag == "CLIENT" {
-
-		if *serverIp == "null" {
-			log.Fatal("expected server's ip but got null")
+	case "CLIENT":
+		// Ensure -ip and -p are provided for CLIENT mode
+		if *serverIp == "" {
+			log.Fatal("Server IP is required for CLIENT mode")
 		}
-
-		if *port == "null" {
-			log.Fatal("expected  port address but got null")
+		if *port == "" {
+			log.Fatal("Port is required for CLIENT mode")
 		}
+		fmt.Println("server ip is ", *serverIp)
 		conn, err := net.Dial("tcp", *serverIp+":"+*port)
-		if err != nil {
-			log.Fatalf("failed establishing the connection %+v", err.Error())
-		}
-		conn.Write([]byte("Hello server I'am Client"))
 		defer conn.Close()
-	} else {
-		log.Panic("unknown value for -h flag, use CLINET or HOST as the flag value")
+		if err != nil {
+			log.Fatalf("Failed establishing the connection: %v", err)
+		}
+
+		_, err = conn.Write([]byte("Hello server, I am a client"))
+		if err != nil {
+			log.Fatalf("Error sending message: %v", err)
+		}
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			wg.Done()
+			buffer := make([]byte, 1024)
+			for {
+				// Read data from the connection
+				n, err := conn.Read(buffer)
+				if err != nil {
+					fmt.Printf("Error reading from server: %v\n", err)
+					break
+				}
+				// Print the received message
+				fmt.Println("Message from server:", string(buffer[:n]))
+			}
+		}()
+		wg.Wait()
+
+	default:
+		log.Fatalf("Unknown value for -h flag, use CLIENT or HOST as the flag value")
 	}
 }
