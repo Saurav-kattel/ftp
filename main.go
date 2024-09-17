@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"sauravkattel/ftp/server"
 	"sync"
 )
@@ -29,21 +32,19 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error getting IP: %v", err)
 		}
-		fmt.Println("ip is ", ip)
 		listener, err := server.InitServer(ip, "4000")
 		if err != nil {
 			log.Fatalf("Error initializing server: %v", err)
 		}
 		defer listener.Close()
 
-		isConnectionEstablished = false
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				log.Printf("Error accepting connection: %v", err)
 				continue
 			}
-			go server.HandleConn(conn)
+			go server.HandleServerConn(conn)
 		}
 
 	case "CLIENT":
@@ -54,35 +55,53 @@ func main() {
 		if *port == "" {
 			log.Fatal("Port is required for CLIENT mode")
 		}
-		fmt.Println("server ip is ", *serverIp)
+
 		conn, err := net.Dial("tcp", *serverIp+":"+*port)
-		defer conn.Close()
 		if err != nil {
 			log.Fatalf("Failed establishing the connection: %v", err)
 		}
+		defer conn.Close()
 
-		_, err = conn.Write([]byte("Hello server, I am a client"))
-		if err != nil {
-			log.Fatalf("Error sending message: %v", err)
-		}
 		var wg sync.WaitGroup
-		wg.Add(1)
+		wg.Add(2)
+
+		// Goroutine to handle server messages
 		go func() {
-			wg.Done()
+			defer wg.Done()
 			buffer := make([]byte, 1024)
 			for {
-				// Read data from the connection
 				n, err := conn.Read(buffer)
 				if err != nil {
+					if err == io.EOF {
+						log.Panic("Connection closed by server")
+						break
+					}
 					fmt.Printf("Error reading from server: %v\n", err)
-					break
+					continue
 				}
-				// Print the received message
-				fmt.Println("Message from server:", string(buffer[:n]))
+				fmt.Printf("\n<< %v", string(buffer[:n]))
 			}
 		}()
-		wg.Wait()
 
+		go func() {
+			defer wg.Done()
+			inputReader := bufio.NewReader(os.Stdin)
+			fmt.Println("say hi")
+			for {
+				fmt.Printf(">>")
+				userInput, _ := inputReader.ReadString('\n')
+
+				// Write user input to server
+				_, err := conn.Write([]byte(userInput))
+				if err != nil {
+					fmt.Printf("Error writing to server: %v\n", err)
+					break
+				}
+			}
+		}()
+		// Wait for the goroutine to finish when the connection closes
+		wg.Wait()
+		fmt.Println("Client connection closed")
 	default:
 		log.Fatalf("Unknown value for -h flag, use CLIENT or HOST as the flag value")
 	}
