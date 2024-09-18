@@ -2,12 +2,18 @@ package server
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"sauravkattel/ftp/util"
 	"sync"
+)
+
+const (
+	BUFFER_SIZE = 1024
 )
 
 type DataStruct struct {
@@ -80,10 +86,8 @@ func ReadFromClient(conn net.Conn, wg *sync.WaitGroup) {
 	// Read response from client
 
 	for {
-
 		response := util.ReadBytes(conn)
 		fmt.Println(string(response))
-		fmt.Println(util.ConvertIntoDataStruct(response))
 	}
 }
 
@@ -127,8 +131,72 @@ func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
 		userInput, _ := inputReader.ReadString('\n')
 		parsedInput := util.ParseUserInput(userInput)
 
-		dataBytes := util.ConvertIntoBytes(parsedInput)
-		util.WriteBytes(conn, dataBytes)
+		ftLen := make([]byte, 4)
+		fnLen := make([]byte, 4)
+		actLen := make([]byte, 4)
+		filePath := ""
+		dataBuffer := make([]byte, BUFFER_SIZE)
+
+		switch parsedInput.CmdName {
+		case "SEND":
+			{
+				for key, value := range parsedInput.Flags {
+					switch key {
+					case "t":
+						{
+							binary.BigEndian.PutUint32(ftLen, uint32(len(value)))
+							dataBuffer = append(dataBuffer, ftLen...)
+							dataBuffer = append(dataBuffer, []byte(value)...)
+						}
+
+					case "n":
+						{
+							binary.BigEndian.PutUint32(fnLen, uint32(len(value)))
+							dataBuffer = append(dataBuffer, fnLen...)
+							dataBuffer = append(dataBuffer, []byte(value)...)
+
+						}
+					case "p":
+						{
+							fileStat, err := os.Stat(value)
+							if err != nil {
+								fmt.Printf("could not read file: %+v\n", err)
+								os.Exit(1)
+							}
+
+							fileUnit32Size := uint32(fileStat.Size())
+							binary.BigEndian.AppendUint32(actLen, fileUnit32Size)
+							dataBuffer = append(dataBuffer, actLen...)
+							filePath = value
+						}
+					}
+
+				}
+			}
+		}
+		fmt.Println(filePath)
+		file, err := os.Open(filePath)
+
+		if err != nil {
+			log.Fatalf("unable to open file %+v", err)
+		}
+		uintFtLen := binary.BigEndian.Uint32(ftLen)
+		uintFnLen := binary.BigEndian.Uint32(fnLen)
+		occupiedBufferSpace := uintFnLen + uintFtLen + 12 // 12 for sotring  file metadata
+		availableSpace := BUFFER_SIZE - occupiedBufferSpace
+		tmpBuff := make([]byte, availableSpace)
+		for {
+			bytesRead, err := file.Read(tmpBuff)
+			if err != nil && err != io.EOF {
+				fmt.Printf("failed reading file %+v", err)
+				return
+			}
+			if bytesRead == 0 {
+				break
+			}
+			util.WriteBytes(conn, tmpBuff)
+			tmpBuff = make([]byte, BUFFER_SIZE)
+		}
 	}
 }
 
