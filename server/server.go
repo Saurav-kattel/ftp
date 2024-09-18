@@ -12,10 +12,6 @@ import (
 	"sync"
 )
 
-const (
-	BUFFER_SIZE = 1024
-)
-
 type DataStruct struct {
 	CmdName   string
 	FlagCount int
@@ -80,14 +76,53 @@ func execCmd(cmd util.DataStruct) {
 	}
 }
 
+func ConvertByteToUint32(data []byte) uint32 {
+	length := binary.BigEndian.Uint32(data)
+	return length
+}
+
 func ReadFromClient(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
-	// Use a buffered reader to read commands from stdin
+	fileType := ""
+	fileName := ""
+	// Use a bufferedreader to read commands from stdin
 	// Read response from client
-
+	readMetaData := true
 	for {
 		response := util.ReadBytes(conn)
-		fmt.Println(string(response))
+
+		if readMetaData && len(response) > 0 {
+			stIdx := 0
+			endIdx := 4
+
+			fileTypeLenBuffer := response[stIdx:endIdx]
+			fileTypeLen := ConvertByteToUint32(fileTypeLenBuffer)
+
+			stIdx = endIdx
+			endIdx = stIdx + int(fileTypeLen)
+			fileType = string(response[stIdx:endIdx])
+			stIdx = endIdx
+			endIdx = stIdx + int(fileTypeLen)
+			fileNameLen := ConvertByteToUint32(response[stIdx:endIdx])
+			stIdx = endIdx
+			endIdx = stIdx + int(fileNameLen)
+
+			fileName = string(response[stIdx:endIdx])
+			fmt.Println(fileName, fileType)
+			readMetaData = false
+
+		} else if !readMetaData && len(response) > 0 {
+			fname := "./" + fileName + "." + fileType
+			file, err := os.OpenFile(fname, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer file.Close()
+			file.Write(response)
+			fmt.Println("[done]")
+
+		}
+
 	}
 }
 
@@ -135,8 +170,7 @@ func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
 		fnLen := make([]byte, 4)
 		actLen := make([]byte, 4)
 		filePath := ""
-		dataBuffer := make([]byte, BUFFER_SIZE)
-
+		dataBuffer := []byte{}
 		switch parsedInput.CmdName {
 		case "SEND":
 			{
@@ -165,38 +199,38 @@ func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
 							}
 
 							fileUnit32Size := uint32(fileStat.Size())
-							binary.BigEndian.AppendUint32(actLen, fileUnit32Size)
+							binary.BigEndian.PutUint32(actLen, fileUnit32Size)
 							dataBuffer = append(dataBuffer, actLen...)
 							filePath = value
 						}
 					}
 
 				}
-			}
-		}
-		fmt.Println(filePath)
-		file, err := os.Open(filePath)
 
-		if err != nil {
-			log.Fatalf("unable to open file %+v", err)
-		}
-		uintFtLen := binary.BigEndian.Uint32(ftLen)
-		uintFnLen := binary.BigEndian.Uint32(fnLen)
-		occupiedBufferSpace := uintFnLen + uintFtLen + 12 // 12 for sotring  file metadata
-		availableSpace := BUFFER_SIZE - occupiedBufferSpace
-		tmpBuff := make([]byte, availableSpace)
-		for {
-			bytesRead, err := file.Read(tmpBuff)
-			if err != nil && err != io.EOF {
-				fmt.Printf("failed reading file %+v", err)
-				return
+				util.WriteBytes(conn, dataBuffer)
+
+				file, err := os.Open(filePath)
+				contentBuffer := make([]byte, 1024)
+
+				if err != nil {
+					log.Fatalf("unable to open file %+v", err)
+				}
+
+				for {
+					bytesRead, err := file.Read(contentBuffer)
+					if err != nil && err != io.EOF {
+						fmt.Printf("failed reading file %+v", err)
+						return
+					}
+					if bytesRead == 0 {
+						break
+					}
+					util.WriteBytes(conn, contentBuffer[:bytesRead])
+				}
+
 			}
-			if bytesRead == 0 {
-				break
-			}
-			util.WriteBytes(conn, tmpBuff)
-			tmpBuff = make([]byte, BUFFER_SIZE)
 		}
+
 	}
 }
 

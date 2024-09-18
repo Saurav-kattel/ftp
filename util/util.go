@@ -84,10 +84,12 @@ func ConvertIntoDataStruct(parsedInput []byte) DataStruct {
 func ReadBytes(conn net.Conn) []byte {
 	lengthBytes := make([]byte, 4)
 	_, err := io.ReadFull(conn, lengthBytes)
+
 	if err != nil {
 		fmt.Println("failed reading length bytes")
 		os.Exit(1)
 	}
+
 	length := binary.BigEndian.Uint32(lengthBytes)
 	buffer := make([]byte, length)
 	_, err = io.ReadFull(conn, buffer)
