@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
-	"os"
 	"sauravkattel/ftp/server"
 	"sync"
 )
@@ -66,39 +63,8 @@ func main() {
 		wg.Add(2)
 
 		// Goroutine to handle server messages
-		go func() {
-			defer wg.Done()
-			buffer := make([]byte, 1024)
-			for {
-				n, err := conn.Read(buffer)
-				if err != nil {
-					if err == io.EOF {
-						log.Panic("Connection closed by server")
-						break
-					}
-					fmt.Printf("Error reading from server: %v\n", err)
-					continue
-				}
-				fmt.Printf("\n<< %v", string(buffer[:n]))
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			inputReader := bufio.NewReader(os.Stdin)
-			fmt.Println("say hi")
-			for {
-				fmt.Printf(">>")
-				userInput, _ := inputReader.ReadString('\n')
-
-				// Write user input to server
-				_, err := conn.Write([]byte(userInput))
-				if err != nil {
-					fmt.Printf("Error writing to server: %v\n", err)
-					break
-				}
-			}
-		}()
+		go server.ReadFromHost(conn, &wg)
+		go server.WriteToHost(conn, &wg)
 		// Wait for the goroutine to finish when the connection closes
 		wg.Wait()
 		fmt.Println("Client connection closed")

@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sauravkattel/ftp/lexer"
+	"sauravkattel/ftp/util"
 	"sync"
 )
+
+type DataStruct struct {
+	CmdName   string
+	FlagCount int
+	Flags     map[string]string
+}
 
 type ServerType int
 
@@ -40,7 +46,7 @@ func InitServer(ip string, port string) (net.Listener, error) {
 	return conn, nil
 }
 
-func WriteClientResponse(conn net.Conn, wg *sync.WaitGroup) {
+func WriteToClient(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -51,43 +57,32 @@ func WriteClientResponse(conn net.Conn, wg *sync.WaitGroup) {
 			fmt.Printf("Error reading command: %v\n", err)
 			return
 		}
+
+		parsedInput := util.ParseUserInput(cmd)
 		// Send the command to the client
-		_, err = conn.Write([]byte(cmd))
-		if err != nil {
-			fmt.Printf("Error sending command: %v\n", err)
-			return
-		}
+		data := util.ConvertIntoBytes(parsedInput)
+		util.WriteBytes(conn, data)
+
+	}
+}
+
+func execCmd(cmd util.DataStruct) {
+	switch cmd.CmdName {
+	case "SEND", "send":
+
 	}
 }
 
 func ReadFromClient(conn net.Conn, wg *sync.WaitGroup) {
-	reader := bufio.NewReader(conn)
 	defer wg.Done()
 	// Use a buffered reader to read commands from stdin
 	// Read response from client
 
 	for {
 
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Printf("Error reading response: %v\n", err)
-			return
-		}
-
-		var Tokens []lexer.Token
-
-		lex := lexer.Lexer{}
-		lex.LoadLexer(response)
-		tkn := lex.GetNextToken()
-		for {
-			if tkn.TokenType == lexer.EOF {
-				Tokens = append(Tokens, tkn)
-				break
-			}
-			Tokens = append(Tokens, tkn)
-			tkn = lex.GetNextToken()
-		}
-
+		response := util.ReadBytes(conn)
+		fmt.Println(string(response))
+		fmt.Println(util.ConvertIntoDataStruct(response))
 	}
 }
 
@@ -98,7 +93,28 @@ func HandleServerConn(conn net.Conn) {
 	wg.Add(2)
 
 	go ReadFromClient(conn, &wg)
-	go WriteClientResponse(conn, &wg)
+	go WriteToClient(conn, &wg)
 	wg.Wait()
 	fmt.Println("Connected with", conn.RemoteAddr())
+}
+
+func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
+	defer wg.Done()
+	inputReader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Printf(">>")
+		userInput, _ := inputReader.ReadString('\n')
+		parsedInput := util.ParseUserInput(userInput)
+
+		dataBytes := util.ConvertIntoBytes(parsedInput)
+		util.WriteBytes(conn, dataBytes)
+	}
+}
+
+func ReadFromHost(conn net.Conn, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		n := util.ReadBytes(conn)
+		fmt.Printf("\n<< %v", util.ConvertIntoDataStruct(n))
+	}
 }

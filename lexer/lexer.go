@@ -59,11 +59,23 @@ func (l *Lexer) GetNextToken() Token {
 			TokenType: EQUAL,
 			Value:     "=",
 		}
+	case '.':
+		l.pos++
+		return Token{
+			TokenType: DOT,
+			Value:     ".",
+		}
+	case '/':
+		l.pos++
+		return Token{
+			TokenType: SLASH,
+			Value:     "/",
+		}
 	}
 
-	if unicode.IsLetter(rune(ch)) || rune(ch) == '.' || rune(ch) == '/' {
+	if unicode.IsLetter(rune(ch)) {
 		buffer := ""
-		for l.pos < len(l.cmd) && unicode.IsLetter(rune(l.cmd[l.pos])) && (rune(ch) == '.' || rune(ch) == '/') {
+		for l.pos < len(l.cmd) && unicode.IsLetter(rune(l.cmd[l.pos])) {
 			buffer += string(l.cmd[l.pos])
 			l.pos++
 		}
