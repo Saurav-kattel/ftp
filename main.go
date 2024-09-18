@@ -2,9 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
-	"net"
 	"sauravkattel/ftp/server"
 	"sync"
 )
