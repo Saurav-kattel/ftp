@@ -52,22 +52,7 @@ func main() {
 		if *port == "" {
 			log.Fatal("Port is required for CLIENT mode")
 		}
-
-		conn, err := net.Dial("tcp", *serverIp+":"+*port)
-		if err != nil {
-			log.Fatalf("Failed establishing the connection: %v", err)
-		}
-		defer conn.Close()
-
-		var wg sync.WaitGroup
-		wg.Add(2)
-
-		// Goroutine to handle server messages
-		go server.ReadFromHost(conn, &wg)
-		go server.WriteToHost(conn, &wg)
-		// Wait for the goroutine to finish when the connection closes
-		wg.Wait()
-		fmt.Println("Client connection closed")
+		server.HandleClientConn(serverIp, port)
 	default:
 		log.Fatalf("Unknown value for -h flag, use CLIENT or HOST as the flag value")
 	}

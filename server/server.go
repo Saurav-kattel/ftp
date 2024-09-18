@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"sauravkattel/ftp/util"
@@ -96,6 +97,26 @@ func HandleServerConn(conn net.Conn) {
 	go WriteToClient(conn, &wg)
 	wg.Wait()
 	fmt.Println("Connected with", conn.RemoteAddr())
+}
+
+func HandleClientConn(serverIp, port *string) {
+	conn, err := net.Dial("tcp", *serverIp+":"+*port)
+	if err != nil {
+		log.Fatalf("Failed establishing the connection: %v", err)
+	}
+
+	defer conn.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Goroutine to handle server messages
+	go ReadFromHost(conn, &wg)
+	go WriteToHost(conn, &wg)
+	// Wait for the goroutine to finish when the connection closes
+	wg.Wait()
+	fmt.Println("Client connection closed")
+
 }
 
 func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
