@@ -83,8 +83,8 @@ func ConvertByteToUint32(data []byte) uint32 {
 
 func ReadFromClient(conn net.Conn, wg *sync.WaitGroup) {
 	defer wg.Done()
-	fileType := ""
 	fileName := ""
+	var fileSize uint32
 	// Use a bufferedreader to read commands from stdin
 	// Read response from client
 	readMetaData := true
@@ -92,27 +92,29 @@ func ReadFromClient(conn net.Conn, wg *sync.WaitGroup) {
 		response := util.ReadBytes(conn)
 
 		if readMetaData && len(response) > 0 {
+
+			//extract the length of filename
 			stIdx := 0
 			endIdx := 4
+			fileNameLenBuffer := response[stIdx:endIdx]
+			fileNameLen := ConvertByteToUint32(fileNameLenBuffer)
 
-			fileTypeLenBuffer := response[stIdx:endIdx]
-			fileTypeLen := ConvertByteToUint32(fileTypeLenBuffer)
-
-			stIdx = endIdx
-			endIdx = stIdx + int(fileTypeLen)
-			fileType = string(response[stIdx:endIdx])
-			stIdx = endIdx
-			endIdx = stIdx + int(fileTypeLen)
-			fileNameLen := ConvertByteToUint32(response[stIdx:endIdx])
+			fmt.Println(fileNameLen, response)
+			// extract the filename
 			stIdx = endIdx
 			endIdx = stIdx + int(fileNameLen)
-
 			fileName = string(response[stIdx:endIdx])
-			fmt.Println(fileName, fileType)
-			readMetaData = false
 
+			//extract the filesize
+			stIdx = endIdx
+			endIdx = stIdx + 4
+			fileSizeBuffer := response[stIdx:endIdx]
+			fileSize = ConvertByteToUint32(fileSizeBuffer)
+
+			fmt.Println(fileSize, fileName)
+			readMetaData = false
 		} else if !readMetaData && len(response) > 0 {
-			fname := "./" + fileName + "." + fileType
+			fname := "./fs" + fileName
 			file, err := os.OpenFile(fname, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 			if err != nil {
 				fmt.Println(err)
@@ -166,9 +168,8 @@ func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
 		userInput, _ := inputReader.ReadString('\n')
 		parsedInput := util.ParseUserInput(userInput)
 
-		ftLen := make([]byte, 4)
-		fnLen := make([]byte, 4)
 		actLen := make([]byte, 4)
+		fileLen := make([]byte, 4)
 		filePath := ""
 		dataBuffer := []byte{}
 		switch parsedInput.CmdName {
@@ -176,20 +177,6 @@ func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
 			{
 				for key, value := range parsedInput.Flags {
 					switch key {
-					case "t":
-						{
-							binary.BigEndian.PutUint32(ftLen, uint32(len(value)))
-							dataBuffer = append(dataBuffer, ftLen...)
-							dataBuffer = append(dataBuffer, []byte(value)...)
-						}
-
-					case "n":
-						{
-							binary.BigEndian.PutUint32(fnLen, uint32(len(value)))
-							dataBuffer = append(dataBuffer, fnLen...)
-							dataBuffer = append(dataBuffer, []byte(value)...)
-
-						}
 					case "p":
 						{
 							fileStat, err := os.Stat(value)
@@ -198,8 +185,18 @@ func WriteToHost(conn net.Conn, wg *sync.WaitGroup) {
 								os.Exit(1)
 							}
 
+							// to store encode filename inside data buffer
+							fileName := fileStat.Name()
+
+							fileNameSize := uint32(len(fileName))
+							binary.BigEndian.PutUint32(fileLen, fileNameSize)
+							dataBuffer = append(dataBuffer, fileLen...)
+							// encode filename
+							dataBuffer = append(dataBuffer, []byte(fileName)...)
+							// to encode filesize inside data buffer
 							fileUnit32Size := uint32(fileStat.Size())
 							binary.BigEndian.PutUint32(actLen, fileUnit32Size)
+
 							dataBuffer = append(dataBuffer, actLen...)
 							filePath = value
 						}
