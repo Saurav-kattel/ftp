@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"sauravkattel/ftp/server"
 	"sync"
@@ -27,6 +28,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Error getting IP: %v", err)
 		}
+		fmt.Println("ip->", ip, "port ->", 4000)
 		listener, err := server.InitServer(ip, "4000")
 		if err != nil {
 			log.Fatalf("Error initializing server: %v", err)

@@ -51,6 +51,7 @@ func ParseUserInput(str string) DataStruct {
 			flags[flagName] = flaValue
 			flagCount++
 		}
+		consume(&lex, &tkn)
 
 	}
 
