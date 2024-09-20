@@ -1,4 +1,4 @@
-# Peer to peer ftp in go
+# Basic ftp implementation in go
 ## How to run?
     Needs go version 1.23.0 
     To host a server run go run main.go -h HOST
