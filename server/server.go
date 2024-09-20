@@ -312,6 +312,7 @@ func ParseCmd(conn net.Conn, parsedInput util.DataStruct) {
 		handleRename(parsedInput)
 	}
 }
+
 func handleRename(parsedInput util.DataStruct) {
 	if parsedInput.FlagCount <= 0 {
 		return
@@ -329,7 +330,7 @@ func handleRename(parsedInput util.DataStruct) {
 
 	err := os.Rename(fileName, newName)
 	if err != nil {
-		fmt.Printf("Cannot rename the file. Error: %+v", err)
+		fmt.Printf("Cannot rename the file. Error: %+v\n", err)
 		return
 	}
 }
@@ -344,18 +345,18 @@ func handleChw(parsedInput util.DataStruct) {
 		case "p":
 			fStat, err := os.Stat(value)
 			if err != nil {
-				fmt.Printf("%s is not a dir or  doesnot exists", value)
+				fmt.Printf("%s is not a dir or  doesnot exist\n", value)
 				return
 			}
 
 			if !fStat.IsDir() {
-				fmt.Printf("%s is not a dir", value)
+				fmt.Printf("%s is not a dir\n", value)
 				return
 			}
 
 			err = os.Chdir(value)
 			if err != nil {
-				fmt.Printf("Error occured: %+v", err)
+				fmt.Printf("Error occured: %+v\n", err)
 				return
 			}
 		default:

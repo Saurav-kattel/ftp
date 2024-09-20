@@ -35,9 +35,7 @@ func ParseUserInput(str string) DataStruct {
 		if tkn.TokenType == lexer.STRING {
 			cmdName = tkn.Value
 			consume(&lex, &tkn)
-		}
-
-		if tkn.TokenType == lexer.MINUS {
+		} else if tkn.TokenType == lexer.MINUS {
 			flaValue := ""
 			consume(&lex, &tkn) // takes -
 
@@ -50,8 +48,9 @@ func ParseUserInput(str string) DataStruct {
 			}
 			flags[flagName] = flaValue
 			flagCount++
+		} else {
+			consume(&lex, &tkn)
 		}
-		consume(&lex, &tkn)
 
 	}
 
