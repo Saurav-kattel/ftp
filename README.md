@@ -14,3 +14,4 @@
       CWD: Changes the directory
       SEND: Sends data over a network
       REN: Rename the file or directory
+      DEL: Deletes file or empty directory
