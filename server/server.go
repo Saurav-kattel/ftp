@@ -130,6 +130,13 @@ func handleHelp() {
 				"-f": "Name of the file to rename",
 				"-n": "New name",
 			},
+		}, {
+			Name:  "DEL",
+			Desc:  "Removes file or empty directory",
+			Usage: "DEL [FLAG]",
+			Flags: map[string]string{
+				"-p": "Path to the file or directory",
+			},
 		},
 	}
 
@@ -157,8 +164,11 @@ func ReadFromClient(conn net.Conn, wg *sync.WaitGroup) {
 	// Read response from client
 	readMetaData := true
 	for {
-		response := util.ReadBytes(conn)
-
+		response, err := util.ReadBytes(conn)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		if readMetaData && len(response) > 0 {
 
 			//extract the length of filename
@@ -253,7 +263,8 @@ func ParseCmd(conn net.Conn, parsedInput util.DataStruct) {
 						fileStat, err := os.Stat(value)
 						if err != nil {
 							fmt.Printf("could not read file: %+v\n", err)
-							os.Exit(1)
+							return
+
 						}
 
 						// to store the cmd name
@@ -292,7 +303,6 @@ func ParseCmd(conn net.Conn, parsedInput util.DataStruct) {
 			for {
 				bytesRead, err := file.Read(contentBuffer)
 				if err != nil && err != io.EOF {
-					fmt.Printf("failed reading file %+v", err)
 					return
 				}
 				if bytesRead == 0 {
@@ -310,6 +320,24 @@ func ParseCmd(conn net.Conn, parsedInput util.DataStruct) {
 		handleChw(parsedInput)
 	case "REN":
 		handleRename(parsedInput)
+	case "DEL":
+		handleDelete(parsedInput)
+	}
+}
+
+func handleDelete(parsedInput util.DataStruct) {
+	if parsedInput.FlagCount <= 0 {
+		return
+	}
+	fileName, ok := parsedInput.Flags["p"]
+
+	if !ok {
+		fmt.Println("Expected flag -p")
+	}
+
+	err := os.Remove(fileName)
+	if err != nil {
+		fmt.Println("error occured ", err)
 	}
 }
 
@@ -399,8 +427,14 @@ func ReadFromHost(conn net.Conn, wg *sync.WaitGroup) {
 	// Read response from client
 	readMetaData := true
 	for {
-		response := util.ReadBytes(conn)
-
+		response, err := util.ReadBytes(conn)
+		if err != nil {
+			if err.Error() == "Connection Closed" {
+				fmt.Println("Connection closed")
+				os.Exit(0)
+			}
+			fmt.Println(err)
+		}
 		if readMetaData && len(response) > 0 {
 
 			//extract the length of filename
@@ -433,12 +467,11 @@ func ReadFromHost(conn net.Conn, wg *sync.WaitGroup) {
 			fileSize = ConvertByteToUint32(fileSizeBuffer)
 			readMetaData = false
 		} else if !readMetaData && len(response) > 0 {
-			fmt.Println(cmdName, fileName, fileSize)
 			switch cmdName {
 			case "SEND":
 				readMetaData = false
 				handleDataWrite(conn, fileName, fileSize, &previousResSize, response)
-				break
+
 			}
 		} else {
 			previousResSize = 0

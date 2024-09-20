@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"sauravkattel/ftp/lexer"
 )
 
@@ -65,39 +64,30 @@ func ConvertIntoBytes(parsedInput DataStruct) []byte {
 	data, jsonErr := json.Marshal(parsedInput)
 	if jsonErr != nil {
 		fmt.Printf("Error converting parsedData into json byte %v\n", jsonErr)
-		os.Exit(1)
+		return []byte{}
 	}
 	return data
 }
 
-func ConvertIntoDataStruct(parsedInput []byte) DataStruct {
-	var data DataStruct
-	jsonErr := json.Unmarshal(parsedInput, &data)
-	if jsonErr != nil {
-		fmt.Printf("Error converting parsedData into json byte %v\n", jsonErr)
-		os.Exit(1)
-
-	}
-	return data
-}
-
-func ReadBytes(conn net.Conn) []byte {
+func ReadBytes(conn net.Conn) ([]byte, error) {
 	lengthBytes := make([]byte, 4)
 	_, err := io.ReadFull(conn, lengthBytes)
 
 	if err != nil {
-		fmt.Println("failed reading length bytes")
-		os.Exit(1)
+		if err == io.EOF {
+			return []byte{}, fmt.Errorf("Connection Closed")
+		}
+		return []byte{}, err
 	}
 
 	length := binary.BigEndian.Uint32(lengthBytes)
 	buffer := make([]byte, length)
 	_, err = io.ReadFull(conn, buffer)
 	if err != nil {
-		fmt.Println("error reading bytes")
-		os.Exit(1)
+		return []byte{}, err
+
 	}
-	return buffer
+	return buffer, nil
 }
 
 func WriteBytes(conn net.Conn, dataBytes []byte) {
