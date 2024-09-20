@@ -122,6 +122,14 @@ func handleHelp() {
 			Flags: map[string]string{
 				"-p": "Path to the directory",
 			},
+		}, {
+			Name:  "REN",
+			Desc:  "Rename the file or directory",
+			Usage: "REN [Flag] [Flag]",
+			Flags: map[string]string{
+				"-f": "Name of the file to rename",
+				"-n": "New name",
+			},
 		},
 	}
 
@@ -129,9 +137,9 @@ func handleHelp() {
 		fmt.Printf("Name: %s\t Usage:%s\t", cmds.Name, cmds.Usage)
 		fmt.Printf("Desc: %s\t", cmds.Desc)
 		if len(cmds.Flags) > 0 {
-			fmt.Printf("\n\t\t\tFlags: ")
+			fmt.Printf("\n\t\tFlags: \n")
 			for key, value := range cmds.Flags {
-				fmt.Printf("%s : %s \n", key, value)
+				fmt.Printf("\t\t%s : %s \n", key, value)
 			}
 		}
 		fmt.Println()
@@ -300,6 +308,29 @@ func ParseCmd(conn net.Conn, parsedInput util.DataStruct) {
 		handleList()
 	case "CWD":
 		handleChw(parsedInput)
+	case "REN":
+		handleRename(parsedInput)
+	}
+}
+func handleRename(parsedInput util.DataStruct) {
+	if parsedInput.FlagCount <= 0 {
+		return
+	}
+	fileName, ok := parsedInput.Flags["f"]
+	if !ok {
+		fmt.Println("Expected flag -f")
+		return
+	}
+	newName, ok := parsedInput.Flags["n"]
+	if !ok {
+		fmt.Println("Please provide new name with -n flag")
+		return
+	}
+
+	err := os.Rename(fileName, newName)
+	if err != nil {
+		fmt.Printf("Cannot rename the file. Error: %+v", err)
+		return
 	}
 }
 
